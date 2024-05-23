@@ -1,0 +1,7 @@
+{
+    "test_dependencies": [
+        {
+            "url": "https://github.com/samsze0/utils.nvim"
+        }
+    ]
+}
