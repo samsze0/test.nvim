@@ -86,6 +86,13 @@ If you are using [lua-language-server](https://github.com/LuaLS/lua-language-ser
 }
 ```
 
+## TODO
+
+- Default configuration file
+- Local dependencies
+- Logging anything to stdout in lua also logs to stderr, and are misidentified as errors
+- Move away from keeping the repo in `repo-name-xxx`. Because that means users have to constantly modified `.luarc.json`. Perhaps just saving the state information in a json file in `.tests`
+
 ## License
 
 MIT
