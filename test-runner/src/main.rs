@@ -213,9 +213,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut cmd = Command::new("nvim");
             cmd.arg("--headless")
                 .arg("--noplugin")
-                .arg("-u")
-                .arg(test)
-                .arg("+qa");
+                // Prevent shada files from being generated or read
+                .arg("--cmd")
+                .arg("set shada=\"NONE\"");
+
+            // Add plugin to runtimepath
+            // Using --cmd to run vim scripts before the test file is loaded
+            cmd.arg("--cmd").arg("set rtp+=.");
+
+            // Add all external test dependencies to runtimepath
+            for dep in &external_deps {
+                cmd.arg("--cmd").arg(format!("set rtp+={}", dep.display()));
+            }
+
+            cmd.arg("-u").arg(test).arg("+qa");
 
             debug!("Running command: {:?}", cmd);
 
@@ -226,8 +237,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 return false;
             }
 
-            let s = String::from_utf8_lossy(&output.stderr);
-            if s.len() > 0 {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.len() > 0 {
                 print!(
                     "{}",
                     Colour::Red.paint(format!(
@@ -236,7 +247,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         {}
                     "},
                         test.display(),
-                        s
+                        stderr
                     ))
                 );
                 false
