@@ -1,3 +1,4 @@
+use ansi_term::Colour;
 use glob::glob;
 use indoc::indoc;
 use log::{self, debug, error, info, warn};
@@ -8,6 +9,7 @@ use log4rs::{
 };
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::io::Read;
 use std::process::Command;
 use std::{env, fs::File};
@@ -53,6 +55,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config: TestConfig = serde_json::from_str(&contents)?;
 
+    let mut external_deps: Vec<std::path::PathBuf> = Vec::new();
+    let mut local_deps: Vec<std::path::PathBuf> = Vec::new();
+
     if let Some(deps) = &config.test_dependencies {
         for dep in deps {
             debug!(
@@ -61,6 +66,115 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 dep.branch.clone().unwrap_or("none".to_string()),
                 dep.dir.clone().unwrap_or("none".to_string())
             );
+
+            match (&dep.dir, &dep.url) {
+                (None, None) => {
+                    warn!("Neither url or dir is specified, skipping");
+                    continue;
+                }
+                (Some(dir), _) => {
+                    if dep.url.is_some() {
+                        warn!("dir takes precedence over url");
+                    }
+
+                    // Check if dir exists and is a directory
+                    let path = std::path::Path::new(dir);
+                    if !path.exists() {
+                        warn!("Directory {} does not exist, skipping", dir);
+                        continue;
+                    }
+                    if !path.is_dir() {
+                        warn!("{} is not a directory, skipping", dir);
+                        continue;
+                    }
+
+                    info!("Directory {} exists", dir);
+                    local_deps.push(path.to_path_buf());
+                }
+                (None, Some(url)) => {
+                    let maybe_dep_name = std::path::Path::new(url).file_stem();
+                    if maybe_dep_name.is_none() {
+                        panic!("Invalid url: {}", url);
+                    }
+                    let dep_name = maybe_dep_name.unwrap().to_str().unwrap();
+
+                    // Check if git is installed
+                    if let Err(_) = Command::new("git").arg("--version").output() {
+                        panic!("git is not installed");
+                    }
+
+                    // Check if url is a valid git repository, if so,
+                    // get the HEAD commit hash
+                    let url = url.clone();
+                    let output = Command::new("git")
+                        .arg("ls-remote")
+                        .arg(&url)
+                        .output()
+                        .expect("Failed to execute git ls-remote");
+
+                    if !output.status.success() {
+                        panic!("URL {} is not a valid git repository", url);
+                    }
+
+                    let git_ls_remote_output = String::from_utf8_lossy(&output.stdout);
+                    let mut ref_name_hash_map = HashMap::new();
+
+                    for line in git_ls_remote_output.lines() {
+                        let mut parts = line.split_whitespace();
+                        if let (Some(hash), Some(ref_name)) = (parts.next(), parts.next()) {
+                            ref_name_hash_map.insert(ref_name.to_string(), hash.to_string());
+                        }
+                    }
+
+                    // Let ref name equals HEAD if branch is not specified, else use "refs/head/branch"
+                    let ref_name = match &dep.branch {
+                        Some(branch) => format!("refs/heads/{}", branch),
+                        None => "HEAD".to_string(),
+                    };
+                    match ref_name_hash_map.get(&ref_name) {
+                        Some(hash) => {
+                            // Check if repo already exists in the ".test/external-dep" directory
+                            let dep_path_str = format!(".test/external-dep/{}-{}", dep_name, hash);
+                            let dep_path = std::path::Path::new(&dep_path_str);
+                            if dep_path.exists() {
+                                debug!(
+                                    "Test dependency {} already exists in {}. Skip cloning",
+                                    url,
+                                    dep_path.display()
+                                );
+                            } else {
+                                info!(
+                                    "Cloning repository {} with branch {}",
+                                    url,
+                                    dep.branch.clone().unwrap_or("HEAD".to_string())
+                                );
+                                let mut cmd = Command::new("git");
+
+                                cmd.arg("clone");
+
+                                if let Some(branch) = &dep.branch {
+                                    cmd.arg("--branch").arg(branch);
+                                }
+
+                                let output = cmd
+                                    .arg(&url)
+                                    .arg(&dep_path)
+                                    .output()
+                                    .expect("Failed to execute git clone");
+
+                                if !output.status.success() {
+                                    panic!("Failed to clone repository {}", url);
+                                }
+                            }
+
+                            external_deps.push(dep_path.to_path_buf());
+                        }
+                        None => {
+                            panic!("Branch {} does not exist in repository {}", ref_name, url);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -91,39 +205,53 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    matched_files.par_iter().for_each(|test| {
-        debug!("Running test: {:?}", test.display());
+    let test_results: Vec<bool> = matched_files
+        .par_iter()
+        .map(|test| {
+            debug!("Running test: {:?}", test.display());
 
-        let mut cmd = Command::new("nvim");
-        cmd.arg("--headless")
-            .arg("--noplugin")
-            .arg(format!("-u {}", test.display()))
-            .arg("-c qa!");
+            let mut cmd = Command::new("nvim");
+            cmd.arg("--headless")
+                .arg("--noplugin")
+                .arg("-u")
+                .arg(test)
+                .arg("+qa");
 
-        debug!("Running command: {:?}", cmd);
+            debug!("Running command: {:?}", cmd);
 
-        let output = cmd.output().expect("Failed to execute command");
+            let output = cmd.output().expect("Failed to execute command");
 
-        if output.status.success() {
-            let s = String::from_utf8_lossy(&output.stdout);
-            info!(
-                indoc! {"
-                Successfully ran command: {:?}
-                Command output:
-                {}"},
-                cmd, s
-            );
-        } else {
+            if !output.status.success() {
+                error!("Failed to run command: {:?}", cmd);
+                return false;
+            }
+
             let s = String::from_utf8_lossy(&output.stderr);
-            warn!(
-                indoc! {"
-                Failed to run command: {:?}
-                Command output:
-                {}"},
-                cmd, s
-            );
-        }
-    });
+            if s.len() > 0 {
+                print!(
+                    "{}",
+                    Colour::Red.paint(format!(
+                        indoc! {"
+                        x {}
+                        {}
+                    "},
+                        test.display(),
+                        s
+                    ))
+                );
+                false
+            } else {
+                println!("{}", Colour::Blue.paint(format!("✓ {}", test.display())));
+                true
+            }
+        })
+        .collect();
+
+    // Count the number of failed tests
+    let num_failed_tests = test_results.into_iter().filter(|x| !x).count();
+    if num_failed_tests > 0 {
+        Err(format!("{} test(s) failed", num_failed_tests))?;
+    }
 
     Ok(())
 }
