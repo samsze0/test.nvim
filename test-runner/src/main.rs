@@ -92,7 +92,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     local_deps.push(path.to_path_buf());
                 }
                 (None, Some(url)) => {
-                    let maybe_dep_name = std::path::Path::new(url).file_stem();
+                    let maybe_dep_name = std::path::Path::new(url).file_name();
                     if maybe_dep_name.is_none() {
                         panic!("Invalid url: {}", url);
                     }
@@ -148,6 +148,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     url,
                                     dep.branch.clone().unwrap_or("HEAD".to_string())
                                 );
+                                println!(
+                                    "{}",
+                                    Colour::Yellow.paint(format!(
+                                        "Cloning repo {} @ branch {}...",
+                                        url,
+                                        dep.branch.clone().unwrap_or("HEAD".to_string())
+                                    ))
+                                );
+
                                 let mut cmd = Command::new("git");
 
                                 cmd.arg("clone");
