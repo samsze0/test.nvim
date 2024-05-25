@@ -245,6 +245,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 cmd.arg("--cmd").arg(format!("set rtp+={}", dep.display()));
             }
 
+            for dep in &local_deps {
+                cmd.arg("--cmd").arg(format!("set rtp+={}", dep.display()));
+            }
+
             cmd.arg("-u").arg(test).arg("+qa");
 
             debug!("Running command: {:?}", cmd);

@@ -3,6 +3,9 @@
   "testDependencies": [
     {
       "uri": "https://github.com/samsze0/utils.nvim"
+    },
+    {
+      "uri": "file:../../../jumplist.nvim"
     }
   ]
 }
