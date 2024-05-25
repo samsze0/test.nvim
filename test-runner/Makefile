@@ -16,3 +16,7 @@ test-release:
 log:
 	tail -f /tmp/nvim-test-runner.log
 .PHONY: log
+
+install: build-release
+	cp target/release/nvim-test-runner ~/bin
+.PHONY: install

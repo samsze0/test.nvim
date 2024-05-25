@@ -17,11 +17,13 @@ Create a file named `nvim-test-runner.json` in your plugin root directory
 
 ```json
 {
-    "test_dependencies": [
-        {
-            "url": "https://github.com/samsze0/utils.nvim"
-        }
-    ]
+  "$schema": "https://raw.githubusercontent.com/samsze0/test.nvim/main/nvim-test-runner.schema.json",
+  "testDependencies": [
+    {
+      "uri": "https://github.com/samsze0/utils.nvim",
+      "branch": "main"
+    }
+  ]
 }
 ```
 
