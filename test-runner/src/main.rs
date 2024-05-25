@@ -15,6 +15,7 @@ use std::process::Command;
 use std::{env, fs::File};
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct TestDepedency {
     url: Option<String>,
     branch: Option<String>,
@@ -22,6 +23,7 @@ struct TestDepedency {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct TestConfig {
     test_dependencies: Option<Vec<TestDepedency>>,
     test_paths: Option<Vec<String>>,
@@ -220,11 +222,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             debug!("Running test: {:?}", test.display());
 
             let mut cmd = Command::new("nvim");
-            cmd.arg("--headless")
-                .arg("--noplugin")
+            cmd.arg("--noplugin").arg("--headless")
+                // Disable backup and swap
+                .arg("--cmd")
+                .arg("set nobackup nowritebackup noswapfile")
                 // Prevent shada files from being generated or read
                 .arg("--cmd")
-                .arg("set shada=\"NONE\"");
+                .arg("set shada=\"NONE\"")
+                // Disable viminfo
+                .arg("-i")
+                .arg("NONE");
 
             // Add plugin to runtimepath
             // Using --cmd to run vim scripts before the test file is loaded

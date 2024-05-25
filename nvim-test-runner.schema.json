@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samsze0/nvim-test-runner.schema.json",
+  "title": "nvim-test-runner configuration",
+  "description": "Configuration for nvim-test-runner",
+  "type": "object",
+  "properties": {
+    "testDependencies": {
+      "description": "A dependency that is required to run tests for your plugin",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "description": "A dependency that is required to run tests for your plugin",
+        "type": "object",
+        "properties": {
+          "url": {
+            "description": "The git repo url of your dependency. This option is ignored if the dir option is set",
+            "type": "string"
+          },
+          "branch": {
+            "description": "The branch name of the git repo. This option is ignored if the url option is not used",
+            "type": "string"
+          },
+          "dir": {
+            "description": "The directory where your dependency is installed locally. This option would override the url option",
+            "type": "string"
+          }
+        }
+      }
+    },
+    "testPaths": {
+        "description": "A list of glob patterns for collecting test files",
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+            "type": "string"
+        }
+    }
+  }
+}

@@ -1,5 +1,5 @@
 {
-    "test_dependencies": [
+    "testDependencies": [
         {
             "url": "https://github.com/samsze0/utils.nvim"
         }
