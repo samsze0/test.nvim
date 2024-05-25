@@ -5,6 +5,7 @@
   "description": "Configuration for nvim-test-runner",
   "type": "object",
   "properties": {
+    "unevaluatedProperties": false,
     "testDependencies": {
       "description": "A dependency that is required to run tests for your plugin",
       "type": "array",
@@ -13,17 +14,33 @@
         "description": "A dependency that is required to run tests for your plugin",
         "type": "object",
         "properties": {
-          "url": {
-            "description": "The git repo url of your dependency. This option is ignored if the dir option is set",
-            "type": "string"
+          "unevaluatedProperties": false,
+          "examples": [
+            {
+              "url": "https://github.com/samsze0/utils.nvim",
+              "branch": "main"
+            },
+            {
+              "uri": "file:../jumplist.nvim"
+            },
+            {
+              "uri": "file:///Users/sam/nvim-plugins/jumplist.nvim"
+            }
+          ],
+          "uri": {
+            "description": "Either the path to where your dependency is installed locally, or the git repo url of your dependency",
+            "type": "string",
+            "format": "uri",
+            "examples": [
+              "file:../jumplist.nvim",
+              "file:///Users/sam/nvim-plugins/jumplist.nvim",
+              "https://github.com/samsze0/jumplist.nvim"
+            ]
           },
           "branch": {
-            "description": "The branch name of the git repo. This option is ignored if the url option is not used",
-            "type": "string"
-          },
-          "dir": {
-            "description": "The directory where your dependency is installed locally. This option would override the url option",
-            "type": "string"
+            "description": "The branch name of the git repo. This option is ignored if the uri is not pointing to a git repo",
+            "type": "string",
+            "default": "HEAD"
           }
         }
       }
@@ -32,6 +49,13 @@
         "description": "A list of glob patterns for collecting test files",
         "type": "array",
         "uniqueItems": true,
+        "default": [
+          "tests/**/*.lua",
+          "test/**/*.lua",
+          "lua/tests/**/*.lua",
+          "lua/test/**/*.lua"
+        ],
+        "minItems": 1,
         "items": {
             "type": "string"
         }

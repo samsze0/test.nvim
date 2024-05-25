@@ -1,7 +1,8 @@
 {
-    "testDependencies": [
-        {
-            "url": "https://github.com/samsze0/utils.nvim"
-        }
-    ]
+  "$schema": "https://raw.githubusercontent.com/samsze0/test.nvim/main/nvim-test-runner.schema.json",
+  "testDependencies": [
+    {
+      "uri": "https://github.com/samsze0/utils.nvim"
+    }
+  ]
 }
