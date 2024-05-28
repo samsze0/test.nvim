@@ -113,6 +113,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         file.read_to_string(&mut contents)?;
         serde_json::from_str(&contents)?
     } else {
+        println!(
+            "{}",
+            Colour::Yellow.paint("Config file not found, using default config")
+        );
         info!("Config file not found, using default config");
         let config = TestConfig::default();
         config
@@ -125,6 +129,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         file.read_to_string(&mut contents)?;
         serde_json::from_str(&contents)?
     } else {
+        println!(
+            "{}",
+            Colour::Yellow.paint("State file not found, creating new state")
+        );
         info!("State file not found, creating new state");
         let state = State::default();
         state
@@ -157,10 +165,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
 
                 if !path.exists() {
+                    println!(
+                        "{}",
+                        Colour::Yellow.paint(format!("Path {} does not exist, skipping", dep.uri))
+                    );
                     warn!("Path {} does not exist, skipping", dep.uri);
                     continue;
                 }
                 if !path.is_dir() {
+                    println!(
+                        "{}",
+                        Colour::Yellow.paint(format!(
+                            "{} does not point to a directory, skipping",
+                            dep.uri
+                        ))
+                    );
                     warn!("{} does not point to a directory, skipping", dep.uri);
                     continue;
                 }
@@ -174,6 +193,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let maybe_dep_name = std::path::Path::new(&dep.uri).file_name();
             if maybe_dep_name.is_none() {
+                println!("{}", Colour::Red.paint(format!("Invalid uri: {}", dep.uri)));
                 panic!("Invalid uri: {}", dep.uri);
             }
             let dep_name = maybe_dep_name.unwrap().to_str().unwrap();
@@ -182,6 +202,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if !args.skip_remote_check {
                 // Check if git is installed
                 if let Err(_) = Command::new("git").arg("--version").output() {
+                    println!("{}", Colour::Red.paint("git is not installed"));
                     panic!("git is not installed");
                 }
 
@@ -194,6 +215,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .expect("Failed to execute git ls-remote");
 
                 if !output.status.success() {
+                    println!(
+                        "{}",
+                        Colour::Red.paint(format!("{} is not a valid git repository", dep.uri))
+                    );
                     panic!("{} is not a valid git repository", dep.uri);
                 }
 
@@ -224,6 +249,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let dep_path = std::path::Path::new(&dep_path_str);
 
                         if !exists && dep_path.exists() {
+                            println!(
+                                "{}",
+                                Colour::Yellow.paint(format!(
+                                    "Overwriting existing test dependency at path {}",
+                                    dep_path.display()
+                                ))
+                            );
                             info!(
                                 "Overwriting existing test dependency at path {}",
                                 dep_path.display()
@@ -237,12 +269,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .retain(|dep_state| dep_state.uri != dep.uri);
                         }
 
-                        info!(
-                            "Cloning repository {} @ branch {} into path {}",
-                            dep.uri,
-                            dep.branch.clone().unwrap_or("HEAD".to_string()),
-                            dep_path.display()
-                        );
                         println!(
                             "{}",
                             Colour::Yellow.paint(format!(
@@ -251,6 +277,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 dep.branch.clone().unwrap_or("HEAD".to_string()),
                                 dep_path.display()
                             ))
+                        );
+                        info!(
+                            "Cloning repository {} @ branch {} into path {}",
+                            dep.uri,
+                            dep.branch.clone().unwrap_or("HEAD".to_string()),
+                            dep_path.display()
                         );
 
                         let mut cmd = Command::new("git");
@@ -268,6 +300,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             .expect("Failed to execute git clone");
 
                         if !output.status.success() {
+                            println!("{}", Colour::Red.paint("Failed to clone repository"));
                             panic!("Failed to clone repository {}", dep.uri);
                         }
 
@@ -278,6 +311,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         });
                     }
                     None => {
+                        println!(
+                            "{}",
+                            Colour::Red.paint(format!(
+                                "Branch {} does not exist in repository {}",
+                                ref_name, dep.uri
+                            ))
+                        );
                         panic!(
                             "Branch {} does not exist in repository {}",
                             ref_name, dep.uri
@@ -292,6 +332,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .iter()
                     .any(|dep_state| dep_state.uri == dep.uri && dep_state.branch == dep.branch);
                 if !exists {
+                    println!(
+                        "{}",
+                        Colour::Red.paint(format!(
+                            "State does not exist for test dependency {} @ branch {}",
+                            dep.uri,
+                            dep.branch.clone().unwrap_or("HEAD".to_string())
+                        ))
+                    );
                     panic!(
                         "State does not exist for test dependency {} @ branch {}",
                         dep.uri,
@@ -376,6 +424,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let output = cmd.output().expect("Failed to execute command");
 
             if !output.status.success() {
+                println!(
+                    "{}",
+                    Colour::Red.paint(format!("Failed to run test {}", test.display()))
+                );
                 error!("Failed to run command: {:?}", cmd);
                 return false;
             }
