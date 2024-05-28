@@ -240,10 +240,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 match ref_name_hash_map.get(&ref_name) {
                     Some(hash) => {
                         // Check if state exists
-                        let exists = state
-                            .test_dependencies
-                            .iter()
-                            .any(|dep_state| dep_state.uri == dep.uri);
+                        let exists = state.test_dependencies.iter().any(|dep_state| {
+                            dep_state.uri == dep.uri && dep_state.branch == dep.branch
+                        });
 
                         let dep_path_str = format!(".test/external-dep/{}", dep_name);
                         let dep_path = std::path::Path::new(&dep_path_str);
@@ -267,6 +266,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             new_state
                                 .test_dependencies
                                 .retain(|dep_state| dep_state.uri != dep.uri);
+                        }
+
+                        if state.test_dependencies.iter().any(|dep_state| {
+                            dep_state.uri == dep.uri
+                                && dep_state.branch == dep.branch
+                                && dep_state.hash == *hash
+                        }) {
+                            continue;
                         }
 
                         println!(
@@ -301,7 +308,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         if !output.status.success() {
                             println!("{}", Colour::Red.paint("Failed to clone repository"));
-                            panic!("Failed to clone repository {}", dep.uri);
+                            panic!(
+                                "Failed to clone repository {}:\n{}",
+                                dep.uri,
+                                String::from_utf8_lossy(&output.stderr)
+                            );
                         }
 
                         new_state.test_dependencies.push(TestDepedencyState {
