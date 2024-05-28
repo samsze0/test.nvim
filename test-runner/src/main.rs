@@ -1,4 +1,5 @@
 use ansi_term::Colour;
+use clap::Parser;
 use glob::glob;
 use indoc::indoc;
 use log::{self, debug, error, info, warn};
@@ -9,10 +10,19 @@ use log4rs::{
 };
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::io::Read;
 use std::process::Command;
+use std::{collections::HashMap, io::Write};
 use std::{env, fs::File};
+
+/// Run tests for Neovim plugins
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// Whether to skip checking the local clone of the external dependency is up-to-date with the remote repository
+    #[arg(short, long)]
+    skip_remote_check: bool,
+}
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -28,8 +38,53 @@ struct TestConfig {
     test_paths: Option<Vec<String>>,
 }
 
+impl TestConfig {
+    pub fn default() -> TestConfig {
+        return TestConfig {
+            test_dependencies: None,
+            test_paths: None,
+        };
+    }
+}
+
+impl Default for TestConfig {
+    fn default() -> Self {
+        Self::default()
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct TestDepedencyState {
+    uri: String,
+    hash: String,
+    branch: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct State {
+    test_dependencies: Vec<TestDepedencyState>,
+}
+
+impl State {
+    pub fn new() -> State {
+        return State {
+            test_dependencies: vec![],
+        };
+    }
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env::set_var("RUST_BACKTRACE", "1");
+
+    let args = Args::parse();
 
     let current_dir = std::env::current_dir()?;
 
@@ -52,11 +107,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log_panics::init();
 
-    let mut file = File::open("nvim-test-runner.json")?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
+    let config_path = "nvim-test-runner.json";
+    let config = if let Ok(mut file) = File::open(&config_path) {
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)?;
+        serde_json::from_str(&contents)?
+    } else {
+        info!("Config file not found, using default config");
+        let config = TestConfig::default();
+        config
+    };
 
-    let config: TestConfig = serde_json::from_str(&contents)?;
+    // Check if state.json exists and is readable and writable, if not readable/writable, throw error
+    let state_path = ".test/state.json";
+    let state = if let Ok(mut file) = File::open(&state_path) {
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)?;
+        serde_json::from_str(&contents)?
+    } else {
+        info!("State file not found, creating new state");
+        let state = State::default();
+        state
+    };
+
+    let mut new_state: State = state.clone(); // For storing the new state (and we overwrite state.json once in the end)
 
     let mut external_deps: Vec<std::path::PathBuf> = Vec::new();
     let mut local_deps: Vec<std::path::PathBuf> = Vec::new();
@@ -96,67 +170,86 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 continue;
             }
 
+            // Treating as external dependency
+
             let maybe_dep_name = std::path::Path::new(&dep.uri).file_name();
             if maybe_dep_name.is_none() {
                 panic!("Invalid uri: {}", dep.uri);
             }
             let dep_name = maybe_dep_name.unwrap().to_str().unwrap();
+            let dep_path = std::path::PathBuf::from(format!(".test/external-dep/{}", dep_name));
 
-            // Check if git is installed
-            if let Err(_) = Command::new("git").arg("--version").output() {
-                panic!("git is not installed");
-            }
-
-            // Check if url is a valid git repository, if so,
-            // get the HEAD commit hash
-            let output = Command::new("git")
-                .arg("ls-remote")
-                .arg(&dep.uri)
-                .output()
-                .expect("Failed to execute git ls-remote");
-
-            if !output.status.success() {
-                panic!("{} is not a valid git repository", dep.uri);
-            }
-
-            let git_ls_remote_output = String::from_utf8_lossy(&output.stdout);
-            let mut ref_name_hash_map = HashMap::new();
-
-            for line in git_ls_remote_output.lines() {
-                let mut parts = line.split_whitespace();
-                if let (Some(hash), Some(ref_name)) = (parts.next(), parts.next()) {
-                    ref_name_hash_map.insert(ref_name.to_string(), hash.to_string());
+            if !args.skip_remote_check {
+                // Check if git is installed
+                if let Err(_) = Command::new("git").arg("--version").output() {
+                    panic!("git is not installed");
                 }
-            }
 
-            // Let ref name equals HEAD if branch is not specified, else use "refs/head/branch"
-            let ref_name = match &dep.branch {
-                Some(branch) => format!("refs/heads/{}", branch),
-                None => "HEAD".to_string(),
-            };
-            match ref_name_hash_map.get(&ref_name) {
-                Some(hash) => {
-                    // Check if repo already exists in the ".test/external-dep" directory
-                    let dep_path_str = format!(".test/external-dep/{}-{}", dep_name, hash);
-                    let dep_path = std::path::Path::new(&dep_path_str);
-                    if dep_path.exists() {
-                        debug!(
-                            "Test dependency {} already exists in {}. Skip cloning",
-                            dep.uri,
-                            dep_path.display()
-                        );
-                    } else {
+                // Check if url is a valid git repository, if so,
+                // get the HEAD commit hash
+                let output = Command::new("git")
+                    .arg("ls-remote")
+                    .arg(&dep.uri)
+                    .output()
+                    .expect("Failed to execute git ls-remote");
+
+                if !output.status.success() {
+                    panic!("{} is not a valid git repository", dep.uri);
+                }
+
+                let git_ls_remote_output = String::from_utf8_lossy(&output.stdout);
+                let mut ref_name_hash_map = HashMap::new();
+
+                for line in git_ls_remote_output.lines() {
+                    let mut parts = line.split_whitespace();
+                    if let (Some(hash), Some(ref_name)) = (parts.next(), parts.next()) {
+                        ref_name_hash_map.insert(ref_name.to_string(), hash.to_string());
+                    }
+                }
+
+                // Let ref name equals HEAD if branch is not specified, else use "refs/head/branch"
+                let ref_name = match &dep.branch {
+                    Some(branch) => format!("refs/heads/{}", branch),
+                    None => "HEAD".to_string(),
+                };
+                match ref_name_hash_map.get(&ref_name) {
+                    Some(hash) => {
+                        // Check if state exists
+                        let exists = state
+                            .test_dependencies
+                            .iter()
+                            .any(|dep_state| dep_state.uri == dep.uri);
+
+                        let dep_path_str = format!(".test/external-dep/{}", dep_name);
+                        let dep_path = std::path::Path::new(&dep_path_str);
+
+                        if !exists && dep_path.exists() {
+                            info!(
+                                "Overwriting existing test dependency at path {}",
+                                dep_path.display()
+                            );
+
+                            std::fs::remove_dir_all(&dep_path)?;
+
+                            // Remove from state
+                            new_state
+                                .test_dependencies
+                                .retain(|dep_state| dep_state.uri != dep.uri);
+                        }
+
                         info!(
-                            "Cloning repository {} with branch {}",
+                            "Cloning repository {} @ branch {} into path {}",
                             dep.uri,
-                            dep.branch.clone().unwrap_or("HEAD".to_string())
+                            dep.branch.clone().unwrap_or("HEAD".to_string()),
+                            dep_path.display()
                         );
                         println!(
                             "{}",
                             Colour::Yellow.paint(format!(
-                                "Cloning repo {} @ branch {}...",
+                                "Cloning repo {} @ branch {} into path {}...",
                                 dep.uri,
-                                dep.branch.clone().unwrap_or("HEAD".to_string())
+                                dep.branch.clone().unwrap_or("HEAD".to_string()),
+                                dep_path.display()
                             ))
                         );
 
@@ -177,19 +270,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if !output.status.success() {
                             panic!("Failed to clone repository {}", dep.uri);
                         }
-                    }
 
-                    external_deps.push(dep_path.to_path_buf());
+                        new_state.test_dependencies.push(TestDepedencyState {
+                            uri: dep.uri.clone(),
+                            hash: hash.clone(),
+                            branch: dep.branch.clone(),
+                        });
+                    }
+                    None => {
+                        panic!(
+                            "Branch {} does not exist in repository {}",
+                            ref_name, dep.uri
+                        );
+                    }
                 }
-                None => {
+            } else {
+                // skip_remote_check option is off
+                // Check if state exists with uri and branch
+                let exists = state
+                    .test_dependencies
+                    .iter()
+                    .any(|dep_state| dep_state.uri == dep.uri && dep_state.branch == dep.branch);
+                if !exists {
                     panic!(
-                        "Branch {} does not exist in repository {}",
-                        ref_name, dep.uri
+                        "State does not exist for test dependency {} @ branch {}",
+                        dep.uri,
+                        dep.branch.clone().unwrap_or("HEAD".to_string())
                     );
                 }
             }
+
+            external_deps.push(dep_path.to_path_buf());
         }
     }
+
+    // Write new_state to state.json; creating the ".texts/" directory if not already exists
+    let serialized_state = serde_json::to_string(&new_state)?;
+    let state_dir = std::path::Path::new(&state_path).parent().unwrap();
+    std::fs::create_dir_all(state_dir)?;
+    let mut file = File::create(&state_path)?;
+    file.write_all(serialized_state.as_bytes())?;
 
     // If test_paths is not given, then default to ["tests/**/*.lua", "test/**/*.lua", "lua/tests/**/*.lua", "lua/test/**/*.lua"]
     let default_test_paths = vec![
