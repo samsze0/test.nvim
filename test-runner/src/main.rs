@@ -81,7 +81,7 @@ impl Default for State {
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
     env::set_var("RUST_BACKTRACE", "1");
 
     let args = Args::parse();
@@ -194,7 +194,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let maybe_dep_name = std::path::Path::new(&dep.uri).file_name();
             if maybe_dep_name.is_none() {
                 println!("{}", Colour::Red.paint(format!("Invalid uri: {}", dep.uri)));
-                panic!("Invalid uri: {}", dep.uri);
+                return Err(format!("Invalid uri: {}", dep.uri).into());
             }
             let dep_name = maybe_dep_name.unwrap().to_str().unwrap();
             let dep_path = std::path::PathBuf::from(format!(".test/external-dep/{}", dep_name));
@@ -203,7 +203,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Check if git is installed
                 if let Err(_) = Command::new("git").arg("--version").output() {
                     println!("{}", Colour::Red.paint("git is not installed"));
-                    panic!("git is not installed");
+                    return Err("git is not installed".into());
                 }
 
                 // Check if url is a valid git repository, if so,
@@ -219,7 +219,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         "{}",
                         Colour::Red.paint(format!("{} is not a valid git repository", dep.uri))
                     );
-                    panic!("{} is not a valid git repository", dep.uri);
+                    return Err(format!("{} is not a valid git repository", dep.uri).into());
                 }
 
                 let git_ls_remote_output = String::from_utf8_lossy(&output.stdout);
@@ -308,11 +308,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         if !output.status.success() {
                             println!("{}", Colour::Red.paint("Failed to clone repository"));
-                            panic!(
+                            return Err(format!(
                                 "Failed to clone repository {}:\n{}",
                                 dep.uri,
                                 String::from_utf8_lossy(&output.stderr)
-                            );
+                            )
+                            .into());
                         }
 
                         new_state.test_dependencies.push(TestDepedencyState {
@@ -329,10 +330,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 ref_name, dep.uri
                             ))
                         );
-                        panic!(
+                        return Err(format!(
                             "Branch {} does not exist in repository {}",
                             ref_name, dep.uri
-                        );
+                        )
+                        .into());
                     }
                 }
             } else {
@@ -351,11 +353,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             dep.branch.clone().unwrap_or("HEAD".to_string())
                         ))
                     );
-                    panic!(
+                    return Err(format!(
                         "State does not exist for test dependency {} @ branch {}",
                         dep.uri,
                         dep.branch.clone().unwrap_or("HEAD".to_string())
-                    );
+                    )
+                    .into());
                 }
             }
 
@@ -419,10 +422,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Using --cmd to run vim scripts before the test file is loaded
             cmd.arg("--cmd").arg("set rtp+=.");
 
+            debug!(
+                "Adding external dependencies to runtimepath: {:?}",
+                external_deps
+            );
+
             // Add all external test dependencies to runtimepath
             for dep in &external_deps {
                 cmd.arg("--cmd").arg(format!("set rtp+={}", dep.display()));
             }
+
+            debug!("Adding local dependencies to runtimepath: {:?}", local_deps);
 
             for dep in &local_deps {
                 cmd.arg("--cmd").arg(format!("set rtp+={}", dep.display()));
@@ -467,8 +477,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Count the number of failed tests
     let num_failed_tests = test_results.into_iter().filter(|x| !x).count();
     if num_failed_tests > 0 {
-        Err(format!("{} test(s) failed", num_failed_tests))?;
+        println!(
+            "{}",
+            Colour::Red.paint(format!("{} test(s) failed", num_failed_tests))
+        );
+        std::process::exit(1);
     }
 
     Ok(())
+}
+
+fn main() {
+    if let Err(e) = run_test_runner() {
+        println!("{}", Colour::Red.paint(format!("{}", e)));
+        error!("{}", e);
+        std::process::exit(2);
+    }
 }
