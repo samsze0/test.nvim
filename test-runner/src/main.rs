@@ -273,6 +273,7 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
                                 && dep_state.branch == dep.branch
                                 && dep_state.hash == *hash
                         }) {
+                            external_deps.push(dep_path.to_path_buf());
                             continue;
                         }
 
