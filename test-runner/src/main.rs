@@ -63,14 +63,22 @@ struct TestDepedencyState {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+struct LuaTestUtilsState {
+    version: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 struct State {
     test_dependencies: Vec<TestDepedencyState>,
+    lua_test_utils: Option<LuaTestUtilsState>,
 }
 
 impl State {
     pub fn new() -> State {
         return State {
             test_dependencies: vec![],
+            lua_test_utils: None,
         };
     }
 }
@@ -139,6 +147,70 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let mut new_state: State = state.clone(); // For storing the new state (and we overwrite state.json once in the end)
+
+    if !args.skip_remote_check {
+        // Check if state exists for lua-test-utils. If so, compare against its version with the version of this program.
+        // If they are different, overwrite the state with the new version.
+        let version = env!("CARGO_PKG_VERSION");
+        if let Some(lua_test_utils_state) = &state.lua_test_utils {
+            if lua_test_utils_state.version != version {
+                println!(
+                    "{}",
+                    Colour::Yellow.paint(format!(
+                        "Upgrading test-utils from version {} to version {}",
+                        lua_test_utils_state.version, version
+                    ))
+                );
+                info!(
+                    "Upgrading test-utils from version {} to version {}",
+                    lua_test_utils_state.version, version
+                );
+
+                // https://raw.githubusercontent.com/samsze0/test.nvim/{version}/lua/test/init.lua
+                let uri = format!(
+                    "https://raw.githubusercontent.com/samsze0/test.nvim/{}/lua/test/init.lua",
+                    version
+                );
+                let content = reqwest::blocking::get(&uri)?.text()?;
+                let path = std::path::PathBuf::from(".test/test-utils.lua");
+                let mut file = File::create(&path)?;
+                file.write_all(content.as_bytes())?;
+
+                new_state.lua_test_utils = Some(LuaTestUtilsState {
+                    version: version.to_string(),
+                });
+            }
+        } else {
+            println!(
+                "{}",
+                Colour::Yellow.paint("Downloading test-utils.lua into .test/")
+            );
+            info!("Downloading test-utils.lua into .test/");
+
+            // https://raw.githubusercontent.com/samsze0/test.nvim/{version}/lua/test/init.lua
+            let uri = format!(
+                "https://raw.githubusercontent.com/samsze0/test.nvim/{}/lua/test/init.lua",
+                version
+            );
+            let content = reqwest::blocking::get(&uri)?.text()?;
+            let path = std::path::PathBuf::from(".test/test-utils.lua");
+            let mut file = File::create(&path)?;
+            file.write_all(content.as_bytes())?;
+
+            info!("Downloaded test-utils.lua into .test/");
+
+            new_state.lua_test_utils = Some(LuaTestUtilsState {
+                version: version.to_string(),
+            });
+        }
+
+        // Write new_state to state.json; creating the ".tests/" directory if not already exists
+        let serialized_state = serde_json::to_string(&new_state)?;
+        let state_dir = std::path::Path::new(&state_path).parent().unwrap();
+        std::fs::create_dir_all(state_dir)?;
+        let mut file = File::create(&state_path)?;
+        file.write_all(serialized_state.as_bytes())?;
+    }
 
     let mut external_deps: Vec<std::path::PathBuf> = Vec::new();
     let mut local_deps: Vec<std::path::PathBuf> = Vec::new();
@@ -367,7 +439,7 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Write new_state to state.json; creating the ".texts/" directory if not already exists
+    // Write new_state to state.json; creating the ".tests/" directory if not already exists
     let serialized_state = serde_json::to_string(&new_state)?;
     let state_dir = std::path::Path::new(&state_path).parent().unwrap();
     std::fs::create_dir_all(state_dir)?;
