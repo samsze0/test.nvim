@@ -6,8 +6,8 @@
 ---@param x T
 ---@return T
 function debug(x)
-	print(vim.inspect(x))
-	return x
+  print(vim.inspect(x))
+  return x
 end
 
 _assert = assert
@@ -19,9 +19,15 @@ _assert = assert
 ---@param expr any
 ---@param message? string
 function assert(expr, message)
-	if not expr then
-		error(message or ("Assertion failed. Expected truthy value, but got " .. vim.inspect(expr)))
-	end
+  if not expr then
+    error(
+      message
+        or (
+          "Assertion failed. Expected truthy value, but got "
+          .. vim.inspect(expr)
+        )
+    )
+  end
 end
 
 -- Provided by `test.nvim`
@@ -31,10 +37,10 @@ end
 ---@param fn function
 ---@param message? string
 function assert_error(fn, message)
-	local ok, result = pcall(fn)
-	if ok then
-		error(message or "Expected an error, but got " .. vim.inspect(result))
-	end
+  local ok, result = pcall(fn)
+  if ok then
+    error(message or "Expected an error, but got " .. vim.inspect(result))
+  end
 end
 
 -- Provided by `test.nvim`
@@ -44,9 +50,15 @@ end
 -- @param expr any
 -- @param message? string
 function assert_not(expr, message)
-	if expr then
-		error(message or ("Assertion failed. Expected falsey value, but got " .. vim.inspect(expr)))
-	end
+  if expr then
+    error(
+      message
+        or (
+          "Assertion failed. Expected falsey value, but got "
+          .. vim.inspect(expr)
+        )
+    )
+  end
 end
 
 -- Provided by `test.nvim`
@@ -57,10 +69,16 @@ end
 ---@param rhs any
 ---@param message? string
 function assert_eq(lhs, rhs, message)
-	if lhs ~= rhs then
-		local msg = message or ("Assertion failed. Expected " .. vim.inspect(rhs) .. ", but got " .. vim.inspect(lhs))
-		error(msg)
-	end
+  if lhs ~= rhs then
+    local msg = message
+      or (
+        "Assertion failed. Expected "
+        .. vim.inspect(rhs)
+        .. ", but got "
+        .. vim.inspect(lhs)
+      )
+    error(msg)
+  end
 end
 
 -- Provided by `test.nvim`
@@ -71,10 +89,16 @@ end
 ---@param rhs any
 ---@param message? string
 function assert_not_eq(lhs, rhs, message)
-	if lhs == rhs then
-		local msg = message or ("Assertion failed. Expected " .. vim.inspect(rhs) .. ", but got " .. vim.inspect(lhs))
-		error(msg)
-	end
+  if lhs == rhs then
+    local msg = message
+      or (
+        "Assertion failed. Expected "
+        .. vim.inspect(rhs)
+        .. ", but got "
+        .. vim.inspect(lhs)
+      )
+    error(msg)
+  end
 end
 
 -- Provided by `test.nvim`
@@ -85,10 +109,16 @@ end
 ---@param rhs any
 ---@param message? string
 function assert_deep_eq(lhs, rhs, message)
-	if not vim.deep_equal(lhs, rhs) then
-		local msg = message or ("Assertion failed. Expected " .. vim.inspect(rhs) .. ", but got " .. vim.inspect(lhs))
-		error(msg)
-	end
+  if not vim.deep_equal(lhs, rhs) then
+    local msg = message
+      or (
+        "Assertion failed. Expected "
+        .. vim.inspect(rhs)
+        .. ", but got "
+        .. vim.inspect(lhs)
+      )
+    error(msg)
+  end
 end
 
 -- Provided by `test.nvim`
@@ -99,10 +129,16 @@ end
 ---@param rhs any
 ---@param message? string
 function assert_not_deep_eq(lhs, rhs, message)
-	if vim.deep_equal(lhs, rhs) then
-		local msg = message or ("Assertion failed. Expected " .. vim.inspect(rhs) .. ", but got " .. vim.inspect(lhs))
-		error(msg)
-	end
+  if vim.deep_equal(lhs, rhs) then
+    local msg = message
+      or (
+        "Assertion failed. Expected "
+        .. vim.inspect(rhs)
+        .. ", but got "
+        .. vim.inspect(lhs)
+      )
+    error(msg)
+  end
 end
 
 -- Provided by `test.nvim`
@@ -113,15 +149,18 @@ end
 ---@param item any
 ---@param message? string
 function assert_contains(list, item, message)
-	for _, v in ipairs(list) do
-		if v == item then
-			return
-		end
-	end
+  for _, v in ipairs(list) do
+    if v == item then return end
+  end
 
-	local msg = message
-		or ("Assertion failed. Expected " .. vim.inspect(item) .. " to be in the list " .. vim.inspect(list))
-	error(msg)
+  local msg = message
+    or (
+      "Assertion failed. Expected "
+      .. vim.inspect(item)
+      .. " to be in the list "
+      .. vim.inspect(list)
+    )
+  error(msg)
 end
 
 -- Provided by `test.nvim`
@@ -132,16 +171,16 @@ end
 ---@param item any
 ---@param message? string
 function assert_not_contains(list, item, message)
-	for _, v in ipairs(list) do
-		if v == item then
-			local msg = message
-				or (
-					"Assertion failed. Expected "
-					.. vim.inspect(item)
-					.. " to not be in the list "
-					.. vim.inspect(list)
-				)
-			error(msg)
-		end
-	end
+  for _, v in ipairs(list) do
+    if v == item then
+      local msg = message
+        or (
+          "Assertion failed. Expected "
+          .. vim.inspect(item)
+          .. " to not be in the list "
+          .. vim.inspect(list)
+        )
+      error(msg)
+    end
+  end
 end
