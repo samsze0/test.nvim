@@ -171,7 +171,8 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
                     "https://raw.githubusercontent.com/samsze0/test.nvim/{}/lua/test/init.lua",
                     version
                 );
-                let content = reqwest::blocking::get(&uri)?.text()?;
+                let client = reqwest::blocking::Client::new();
+                let content = client.get(&uri).header(reqwest::header::USER_AGENT, "private, no-store, max-age=0").send()?.text()?;
                 let path = std::path::PathBuf::from(".test/lua/test-utils.lua");
                 let mut file = File::create(&path)?;
                 file.write_all(content.as_bytes())?;
