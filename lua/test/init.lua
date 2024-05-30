@@ -1,3 +1,6 @@
+local T = {}
+_G.T = T
+
 -- Provided by `test.nvim`
 --
 -- Print and return value
@@ -5,20 +8,18 @@
 ---@generic T : any
 ---@param x T
 ---@return T
-function debug(x)
+function T.debug(x)
   print(vim.inspect(x))
   return x
 end
 
-_assert = assert
-
--- Overriden by `test.nvim`
+-- Provided by `test.nvim`
 --
 -- Like `assert`, but would print out the value of the expression if it is truthy
 --
 ---@param expr any
 ---@param message? string
-function assert(expr, message)
+function T.assert(expr, message)
   if not expr then
     error(
       message
@@ -36,7 +37,7 @@ end
 --
 ---@param fn function
 ---@param message? string
-function assert_error(fn, message)
+function T.assert_error(fn, message)
   local ok, result = pcall(fn)
   if ok then
     error(message or "Expected an error, but got " .. vim.inspect(result))
@@ -49,7 +50,7 @@ end
 --
 -- @param expr any
 -- @param message? string
-function assert_not(expr, message)
+function T.assert_not(expr, message)
   if expr then
     error(
       message
@@ -68,7 +69,7 @@ end
 ---@param lhs any
 ---@param rhs any
 ---@param message? string
-function assert_eq(lhs, rhs, message)
+function T.assert_eq(lhs, rhs, message)
   if lhs ~= rhs then
     local msg = message
       or (
@@ -88,7 +89,7 @@ end
 ---@param lhs any
 ---@param rhs any
 ---@param message? string
-function assert_not_eq(lhs, rhs, message)
+function T.assert_not_eq(lhs, rhs, message)
   if lhs == rhs then
     local msg = message
       or (
@@ -108,7 +109,7 @@ end
 ---@param lhs any
 ---@param rhs any
 ---@param message? string
-function assert_deep_eq(lhs, rhs, message)
+function T.assert_deep_eq(lhs, rhs, message)
   if not vim.deep_equal(lhs, rhs) then
     local msg = message
       or (
@@ -128,7 +129,7 @@ end
 ---@param lhs any
 ---@param rhs any
 ---@param message? string
-function assert_not_deep_eq(lhs, rhs, message)
+function T.assert_not_deep_eq(lhs, rhs, message)
   if vim.deep_equal(lhs, rhs) then
     local msg = message
       or (
@@ -148,7 +149,7 @@ end
 ---@param list table
 ---@param item any
 ---@param message? string
-function assert_contains(list, item, message)
+function T.assert_contains(list, item, message)
   for _, v in ipairs(list) do
     if v == item then return end
   end
@@ -170,7 +171,7 @@ end
 ---@param list table
 ---@param item any
 ---@param message? string
-function assert_not_contains(list, item, message)
+function T.assert_not_contains(list, item, message)
   for _, v in ipairs(list) do
     if v == item then
       local msg = message
