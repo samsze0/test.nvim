@@ -81,11 +81,27 @@ If you are using [lua-language-server](https://github.com/LuaLS/lua-language-ser
       "lua",
       "$VIMRUNTIME/lua",
       "${3rd}/luv/library",
-      ".test/external-dep/utils.nvim/lua"
+      ".test/external-dep/utils.nvim/lua",
+      ".test/lua",
     ],
     "checkThirdParty": false
   }
 }
+```
+
+## `test-utils` module
+
+This project also comes with a `test-utils` module that you can use in your test files. It is not necessary to use this module, but it provides some useful functions for testing.
+
+```lua
+T.assert(1 == 1)
+T.assert_not(nil)
+T.assert_eq(1, 1)
+T.assert_deep_eq({ 1 }, { 1 })
+T.assert_not_deep_eq({ 1 }, { 2 })
+T.assert_error(function()
+  error("error")
+end)
 ```
 
 ## Encountered an error?
