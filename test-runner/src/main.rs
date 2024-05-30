@@ -513,7 +513,9 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
                 cmd.arg("--cmd").arg(format!("set rtp+={}", dep.display()));
             }
 
-            cmd.arg("-u").arg(test).arg("+qa");
+            cmd.arg("-l").arg(".test/test-utils.lua");
+
+            cmd.arg("-l").arg(test).arg("+qa");
 
             debug!("Running command: {:?}", cmd);
 
