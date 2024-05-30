@@ -10,7 +10,7 @@ use log4rs::{
 };
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::io::Read;
+use std::io::{BufWriter, Read};
 use std::process::Command;
 use std::{collections::HashMap, io::Write};
 use std::{env, fs::File};
@@ -205,11 +205,12 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // Write new_state to state.json; creating the ".tests/" directory if not already exists
-        let serialized_state = serde_json::to_string(&new_state)?;
         let state_dir = std::path::Path::new(&state_path).parent().unwrap();
         std::fs::create_dir_all(state_dir)?;
-        let mut file = File::create(&state_path)?;
-        file.write_all(serialized_state.as_bytes())?;
+        let mut w = BufWriter::new(File::create(&state_path)?);
+        serde_json::to_writer_pretty(&mut w, &new_state)?;
+        w.write(b"\n")?;
+        w.flush()?;
     }
 
     let mut external_deps: Vec<std::path::PathBuf> = Vec::new();
@@ -440,11 +441,12 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Write new_state to state.json; creating the ".tests/" directory if not already exists
-    let serialized_state = serde_json::to_string(&new_state)?;
     let state_dir = std::path::Path::new(&state_path).parent().unwrap();
     std::fs::create_dir_all(state_dir)?;
-    let mut file = File::create(&state_path)?;
-    file.write_all(serialized_state.as_bytes())?;
+    let mut w = BufWriter::new(File::create(&state_path)?);
+    serde_json::to_writer_pretty(&mut w, &new_state)?;
+    w.write(b"\n")?;
+    w.flush()?;
 
     // If test_paths is not given, then default to ["tests/**/*.lua", "test/**/*.lua", "lua/tests/**/*.lua", "lua/test/**/*.lua"]
     let default_test_paths = vec![
