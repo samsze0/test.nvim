@@ -118,8 +118,6 @@ Or, please open an issue
 
 ## TODO
 
-- Logging anything to stdout in lua also logs to stderr, and are misidentified as errors
-
 ## License
 
 MIT

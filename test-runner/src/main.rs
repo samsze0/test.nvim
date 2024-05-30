@@ -537,7 +537,8 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             let stderr = String::from_utf8_lossy(&output.stderr);
-            if stderr.len() > 0 {
+            // TODO: Find more robust way to detect errors
+            if stderr.len() > 0 && stderr.contains("Error detected while processing") {
                 print!(
                     "{}",
                     Colour::Red.paint(format!(
