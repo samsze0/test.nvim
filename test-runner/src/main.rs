@@ -29,6 +29,7 @@ struct Args {
 struct TestDepedency {
     uri: String,
     branch: Option<String>,
+    sha: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -59,6 +60,7 @@ struct TestDepedencyState {
     uri: String,
     hash: String,
     branch: Option<String>,
+    sha: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -172,7 +174,11 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
                     version
                 );
                 let client = reqwest::blocking::Client::new();
-                let content = client.get(&uri).header(reqwest::header::USER_AGENT, "private, no-store, max-age=0").send()?.text()?;
+                let content = client
+                    .get(&uri)
+                    .header(reqwest::header::USER_AGENT, "private, no-store, max-age=0")
+                    .send()?
+                    .text()?;
                 let path = std::path::PathBuf::from(".test/lua/test-utils.lua");
                 let mut file = File::create(&path)?;
                 file.write_all(content.as_bytes())?;
@@ -223,9 +229,10 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(deps) = &config.test_dependencies {
         for dep in deps {
             debug!(
-                "uri: {}, branch: {}",
+                "uri: {}, branch: {}, sha: {}",
                 dep.uri,
                 dep.branch.clone().unwrap_or("<none>".to_string()),
+                dep.sha.clone().unwrap_or("<none>".to_string())
             );
 
             // Checks if url starts with "file:", if so, treat it as a local directory
@@ -270,7 +277,6 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
 
             let maybe_dep_name = std::path::Path::new(&dep.uri).file_name();
             if maybe_dep_name.is_none() {
-                println!("{}", Colour::Red.paint(format!("Invalid uri: {}", dep.uri)));
                 return Err(format!("Invalid uri: {}", dep.uri).into());
             }
             let dep_name = maybe_dep_name.unwrap().to_str().unwrap();
@@ -279,7 +285,6 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
             if !args.skip_remote_check {
                 // Check if git is installed
                 if let Err(_) = Command::new("git").arg("--version").output() {
-                    println!("{}", Colour::Red.paint("git is not installed"));
                     return Err("git is not installed".into());
                 }
 
@@ -292,10 +297,6 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
                     .expect("Failed to execute git ls-remote");
 
                 if !output.status.success() {
-                    println!(
-                        "{}",
-                        Colour::Red.paint(format!("{} is not a valid git repository", dep.uri))
-                    );
                     return Err(format!("{} is not a valid git repository", dep.uri).into());
                 }
 
@@ -315,16 +316,26 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
                     None => "HEAD".to_string(),
                 };
                 match ref_name_hash_map.get(&ref_name) {
-                    Some(hash) => {
-                        // Check if state exists
-                        let exists = state.test_dependencies.iter().any(|dep_state| {
-                            dep_state.uri == dep.uri && dep_state.branch == dep.branch
+                    Some(branch_head_sha) => {
+                        // Check if state matches
+                        let state_matches = state.test_dependencies.iter().any(|dep_state| {
+                            dep_state.uri == dep.uri
+                                && dep_state.branch == dep.branch
+                                && dep_state.sha == dep.sha
                         });
+
+                        debug!(
+                            "state_matches: {}, uri: {}, branch: {}, sha: {}",
+                            state_matches,
+                            dep.uri,
+                            dep.branch.clone().unwrap_or("HEAD".to_string()),
+                            dep.sha.clone().unwrap_or("<none>".to_string())
+                        );
 
                         let dep_path_str = format!(".test/external-dep/{}", dep_name);
                         let dep_path = std::path::Path::new(&dep_path_str);
 
-                        if !exists && dep_path.exists() {
+                        if !state_matches && dep_path.exists() {
                             println!(
                                 "{}",
                                 Colour::Yellow.paint(format!(
@@ -346,9 +357,19 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
                         }
 
                         if state.test_dependencies.iter().any(|dep_state| {
-                            dep_state.uri == dep.uri
-                                && dep_state.branch == dep.branch
-                                && dep_state.hash == *hash
+                            if dep_state.uri != dep.uri {
+                                return false;
+                            }
+
+                            if dep.sha.is_some() {
+                                return dep_state.sha == dep.sha;
+                            }
+
+                            if dep.branch.is_some() && dep_state.branch != dep.branch {
+                                return false;
+                            }
+
+                            return dep_state.hash == *branch_head_sha;
                         }) {
                             external_deps.push(dep_path.to_path_buf());
                             continue;
@@ -357,26 +378,24 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
                         println!(
                             "{}",
                             Colour::Yellow.paint(format!(
-                                "Cloning repo {} @ branch {} into path {}...",
+                                "Cloning repo {} @ {}-{} into path {}...",
                                 dep.uri,
                                 dep.branch.clone().unwrap_or("HEAD".to_string()),
+                                dep.sha.clone().unwrap_or("<none>".to_string()),
                                 dep_path.display()
                             ))
                         );
                         info!(
-                            "Cloning repository {} @ branch {} into path {}",
+                            "Cloning repository {} @ {}-{} into path {}",
                             dep.uri,
                             dep.branch.clone().unwrap_or("HEAD".to_string()),
+                            dep.sha.clone().unwrap_or("<none>".to_string()),
                             dep_path.display()
                         );
 
                         let mut cmd = Command::new("git");
 
                         cmd.arg("clone");
-
-                        if let Some(branch) = &dep.branch {
-                            cmd.arg("--branch").arg(branch);
-                        }
 
                         let output = cmd
                             .arg(&dep.uri)
@@ -385,7 +404,6 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
                             .expect("Failed to execute git clone");
 
                         if !output.status.success() {
-                            println!("{}", Colour::Red.paint("Failed to clone repository"));
                             return Err(format!(
                                 "Failed to clone repository {}:\n{}",
                                 dep.uri,
@@ -394,20 +412,37 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
                             .into());
                         }
 
+                        let sha = dep.sha.as_ref().unwrap_or(branch_head_sha);
+
+                        let mut cmd = Command::new("git");
+                        cmd.current_dir(&dep_path);
+                        cmd.arg("reset").arg("--hard");
+                        cmd.arg(&sha);
+
+                        let output = cmd.output().expect("Failed to execute git reset");
+
+                        if !output.status.success() {
+                            error!(
+                                "Failed to reset repository {} to revision {}:\n{}",
+                                dep.uri,
+                                &sha,
+                                String::from_utf8_lossy(&output.stderr)
+                            );
+                            return Err(format!(
+                                "Failed to reset repository {} to revision {}",
+                                dep.uri, &sha
+                            )
+                            .into());
+                        }
+
                         new_state.test_dependencies.push(TestDepedencyState {
                             uri: dep.uri.clone(),
-                            hash: hash.clone(),
+                            hash: branch_head_sha.clone(),
                             branch: dep.branch.clone(),
+                            sha: dep.sha.clone(),
                         });
                     }
                     None => {
-                        println!(
-                            "{}",
-                            Colour::Red.paint(format!(
-                                "Branch {} does not exist in repository {}",
-                                ref_name, dep.uri
-                            ))
-                        );
                         return Err(format!(
                             "Branch {} does not exist in repository {}",
                             ref_name, dep.uri
@@ -423,14 +458,6 @@ fn run_test_runner() -> Result<(), Box<dyn std::error::Error>> {
                     .iter()
                     .any(|dep_state| dep_state.uri == dep.uri && dep_state.branch == dep.branch);
                 if !exists {
-                    println!(
-                        "{}",
-                        Colour::Red.paint(format!(
-                            "State does not exist for test dependency {} @ branch {}",
-                            dep.uri,
-                            dep.branch.clone().unwrap_or("HEAD".to_string())
-                        ))
-                    );
                     return Err(format!(
                         "State does not exist for test dependency {} @ branch {}",
                         dep.uri,

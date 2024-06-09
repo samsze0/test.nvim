@@ -5,6 +5,15 @@
       "uri": "https://github.com/samsze0/utils.nvim"
     },
     {
+      "uri": "https://github.com/samsze0/notifier.nvim.git",
+      "sha": "c8aa61d87a35cea62cb31b16f2adbc443d00a26e",
+      "branch": "main"
+    },
+    {
+      "uri": "https://github.com/MunifTanjim/nui.nvim.git",
+      "sha": "0.3.0"
+    },
+    {
       "uri": "file:../../../jumplist.nvim"
     }
   ]
