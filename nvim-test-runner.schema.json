@@ -21,6 +21,14 @@
               "branch": "main"
             },
             {
+              "url": "https://github.com/samsze0/utils.nvim",
+              "sha": "0.1.0"
+            },
+            {
+              "url": "https://github.com/samsze0/utils.nvim",
+              "sha": "1aeb75875cb685fc1d576654db81273d8c89e718"
+            },
+            {
               "uri": "file:../jumplist.nvim"
             },
             {
@@ -38,27 +46,31 @@
             ]
           },
           "branch": {
-            "description": "The branch name of the git repo. This option is ignored if the uri is not pointing to a git repo",
+            "description": "The branch name of the git repo. This option is ignored if the uri is not pointing to a git repo, or if sha is provided",
             "type": "string",
             "default": "HEAD"
+          },
+          "sha": {
+            "description": "The commit sha of the revision of the git repo. This option is ignored if the uri is not pointing to a git repo",
+            "type": "string"
           }
         }
       }
     },
     "testPaths": {
-        "description": "A list of glob patterns for collecting test files",
-        "type": "array",
-        "uniqueItems": true,
-        "default": [
-          "tests/**/*.lua",
-          "test/**/*.lua",
-          "lua/tests/**/*.lua",
-          "lua/test/**/*.lua"
-        ],
-        "minItems": 1,
-        "items": {
-            "type": "string"
-        }
+      "description": "A list of glob patterns for collecting test files",
+      "type": "array",
+      "uniqueItems": true,
+      "default": [
+        "tests/**/*.lua",
+        "test/**/*.lua",
+        "lua/tests/**/*.lua",
+        "lua/test/**/*.lua"
+      ],
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
     }
   }
 }
