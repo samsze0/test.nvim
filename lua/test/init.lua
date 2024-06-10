@@ -40,7 +40,7 @@ end
 function T.assert_error(fn, message)
   local ok, result = pcall(fn)
   if ok then
-    error(message or "Expected an error, but got " .. vim.inspect(result))
+    error(message or ("Expected an error, but got " .. vim.inspect(result)))
   end
 end
 
